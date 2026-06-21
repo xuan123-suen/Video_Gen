@@ -1,7 +1,7 @@
 name: Text to Video Generator
 
 on:
-  workflow_dispatch: # 允许你在 GitHub 网页上手动点击按钮触发生成
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,18 +16,25 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: 安装网络依赖
+    - name: 安装网络和绘图依赖
       run: |
         python -m pip install --upgrade pip
-        pip install requests
+        pip install requests pillow
 
     - name: 运行 AI 视频生成脚本
       env:
-        HF_TOKEN: ${{ secrets.HF_TOKEN }} # 读取你刚刚配置的加密 Token
-      run: python generate_video.py
+        HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      run: |
+        python generate_video.py
+        echo "=== 检查当前目录下生成的文件 ==="
+        ls -la
+        sleep 3 # 强制等待3秒，确保硬盘写入完成
 
     - name: 将生成的视频上传到 GitHub 供下载
       uses: actions/upload-artifact@v4
       with:
         name: ai-generated-video
-        path: output_video.mp4
+        path: |
+          output_video.mp4
+          *.mp4
+        if-no-files-found: error # 如果找不到文件，直接报错，不留隐患
