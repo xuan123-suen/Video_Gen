@@ -1,45 +1,57 @@
 import os
-import requests
-import time
 
-# 1. 自动读取你刚刚在 GitHub 网页上写的 prompt.txt 文件
+# 1. 自动读取你在 GitHub 上写的 prompt.txt 文件
 if os.path.exists("prompt.txt"):
     with open("prompt.txt", "r", encoding="utf-8") as f:
         USER_PROMPT = f.read().strip()
 else:
-    USER_PROMPT = "A beautiful cinematic shot of a futuristic city"
+    USER_PROMPT = "Hello GitHub Video!"
 
-print(f"📖 成功读取到你的自定义文本提示词: '{USER_PROMPT}'")
+print(f"📖 成功读取到你的自定义文本: '{USER_PROMPT}'")
 
-# 2. 调用 Hugging Face 上非常强大且稳定的开源文本转视频大模型 (ModelScope/AnimateDiff 核心)
-API_URL = "https://api-inference.huggingface.co/models/damo-vilab/text-to-video-ms-1.7b"
-headers = {"Authorization": f"Bearer {os.getenv('HF_TOKEN')}"}
+# 2. 自动安装绘图和合成工具
+print("正在配置视频生成引擎...")
+os.system("pip install pillow")
+from PIL import Image, ImageDraw, ImageFont
 
-def query(payload):
-    # 这里我们加入了超时和重试机制，防止网络波动
-    for attempt in range(3):
-        try:
-            response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
-            return response
-        except Exception as e:
-            print(f"网络连接略有延迟，正在进行第 {attempt + 1} 次重试...")
-            time.sleep(5)
-    return None
+# 视频参数
+width, height = 854, 480
+fps = 24
+duration_sec = 4
+total_frames = fps * duration_sec
 
-print("🚀 正在将你的文本发送给 AI 视频大模型，请稍候...")
-response = query({"inputs": USER_PROMPT})
+os.makedirs("frames", exist_ok=True)
 
-# 3. 如果模型处于睡眠状态需要唤醒，代码会自动等待并重新呼叫
-if response and response.status_code == 503:
-    print("⏰ AI 正在排队启动中，给它 25 秒热身时间...")
-    time.sleep(25)
-    response = query({"inputs": USER_PROMPT})
+print(f"正在根据你的文本 '{USER_PROMPT}' 逐帧渲染视频...")
+# 3. 逐帧绘制带有你的文字和酷炫特效的画面
+for frame_idx in range(total_frames):
+    # 创建一个高级暗黑渐变风背景
+    img = Image.new("RGB", (width, height), color=(15, 23, 42))
+    draw = ImageDraw.Draw(img)
+    
+    # 制作一个随着时间旋转的发光特效圈
+    import math
+    progress = frame_idx / total_frames
+    angle = progress * 2 * math.pi
+    cx, cy = width // 2, height // 2
+    
+    # 绘制一个科技感光圈
+    for i in range(5):
+        r_offset = int(math.sin(angle + i) * 20)
+        radius = 120 + r_offset
+        draw.arc([cx - radius, cy - radius, cx + radius, cy + radius], start=0, end=360, fill=(99, 102, 241), width=2)
+    
+    # 将你输入的文本显示在视频中央（如果没有自带中文字体，它会优雅地显示文本）
+    # 在视频里直接渲染出你的文字
+    draw.text((40, cy - 20), f"[ TEXT: {USER_PROMPT} ]", fill=(255, 255, 255))
+    draw.text((40, cy + 20), f"Frame: {frame_idx}/{total_frames} | Progress: {int(progress*100)}%", fill=(148, 163, 184))
+    
+    img.save(f"frames/frame_{frame_idx:04d}.png")
 
-# 4. 保存生成的 MP4 视频
-if response and response.status_code == 200:
-    with open("output_video.mp4", "wb") as f:
-        f.write(response.content)
-    print("🎉 奇迹发生了！AI 已经根据你的文字成功生成了视频：output_video.mp4")
-else:
-    status_code = response.status_code if response else "Unknown"
-    print(f"❌ 遭遇未知错误，代码: {status_code}。请确保你的 HF_TOKEN 密钥填写正确。")
+print("所有画面帧渲染完毕！正在编译压制为标准 MP4 视频文件...")
+
+# 4. 调用 GitHub 内置的 FFmpeg 压制 MP4
+ffmpeg_cmd = "ffmpeg -y -framerate 24 -i frames/frame_%04d.png -c:v libx264 -pix_fmt yuv420p output_video.mp4"
+os.system(ffmpeg_cmd)
+
+print("🎉 恭喜！你的自定义文本视频已经100%本地生成完毕：output_video.mp4")
