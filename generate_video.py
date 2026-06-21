@@ -1,55 +1,45 @@
 import os
-import math
+import requests
+import time
 
-print("正在初始化本地视频渲染引擎...")
-
-# 确保安装了图片处理库
-os.system("pip install pillow")
-from PIL import Image, ImageDraw
-
-# 视频参数
-width, height = 640, 360
-fps = 24
-duration_sec = 3
-total_frames = fps * duration_sec
-
-print(f"正在生成基础画面帧，总计 {total_frames} 帧...")
-
-# 创建一个临时文件夹存放图片帧
-os.makedirs("frames", exist_ok=True)
-
-# 循环绘制每一帧（做一个炫酷的色彩渐变和文字动画效果）
-for frame_idx in range(total_frames):
-    # 创建画布
-    img = Image.new("RGB", (width, height), color=(30, 30, 30))
-    draw = ImageDraw.Draw(img)
-    
-    # 计算动态波浪效果
-    progress = frame_idx / total_frames
-    angle = progress * 2 * math.pi
-    
-    # 画一个动态的彩色发光球体
-    cx = int(width / 2 + math.sin(angle) * 100)
-    cy = int(height / 2 + math.cos(angle) * 50)
-    radius = 40 + int(math.sin(angle * 2) * 15)
-    
-    # 渐变颜色
-    r = int(127 + 127 * math.sin(angle))
-    g = int(127 + 127 * math.cos(angle))
-    b = 255
-    
-    draw.ellipse([cx - radius, cy - radius, cx + radius, cy + radius], fill=(r, g, b))
-    
-    # 保存单帧图片
-    img.save(f"frames/frame_{frame_idx:04d}.png")
-
-print("所有画面帧生成完毕！正在调用系统 FFmpeg 合成视频...")
-
-# 使用 GitHub 服务器自带的 FFmpeg 工具将图片序列合成为 MP4 视频
-ffmpeg_cmd = "ffmpeg -y -framerate 24 -i frames/frame_%04d.png -c:v libx264 -pix_fmt yuv420p output_video.mp4"
-exit_code = os.system(ffmpeg_cmd)
-
-if exit_code == 0:
-    print("🎉 视频完美生成！成功保存为 output_video.mp4")
+# 1. 自动读取你刚刚在 GitHub 网页上写的 prompt.txt 文件
+if os.path.exists("prompt.txt"):
+    with open("prompt.txt", "r", encoding="utf-8") as f:
+        USER_PROMPT = f.read().strip()
 else:
-    print("FFmpeg 合成失败，请检查系统环境。")
+    USER_PROMPT = "A beautiful cinematic shot of a futuristic city"
+
+print(f"📖 成功读取到你的自定义文本提示词: '{USER_PROMPT}'")
+
+# 2. 调用 Hugging Face 上非常强大且稳定的开源文本转视频大模型 (ModelScope/AnimateDiff 核心)
+API_URL = "https://api-inference.huggingface.co/models/damo-vilab/text-to-video-ms-1.7b"
+headers = {"Authorization": f"Bearer {os.getenv('HF_TOKEN')}"}
+
+def query(payload):
+    # 这里我们加入了超时和重试机制，防止网络波动
+    for attempt in range(3):
+        try:
+            response = requests.post(API_URL, headers=headers, json=payload, timeout=60)
+            return response
+        except Exception as e:
+            print(f"网络连接略有延迟，正在进行第 {attempt + 1} 次重试...")
+            time.sleep(5)
+    return None
+
+print("🚀 正在将你的文本发送给 AI 视频大模型，请稍候...")
+response = query({"inputs": USER_PROMPT})
+
+# 3. 如果模型处于睡眠状态需要唤醒，代码会自动等待并重新呼叫
+if response and response.status_code == 503:
+    print("⏰ AI 正在排队启动中，给它 25 秒热身时间...")
+    time.sleep(25)
+    response = query({"inputs": USER_PROMPT})
+
+# 4. 保存生成的 MP4 视频
+if response and response.status_code == 200:
+    with open("output_video.mp4", "wb") as f:
+        f.write(response.content)
+    print("🎉 奇迹发生了！AI 已经根据你的文字成功生成了视频：output_video.mp4")
+else:
+    status_code = response.status_code if response else "Unknown"
+    print(f"❌ 遭遇未知错误，代码: {status_code}。请确保你的 HF_TOKEN 密钥填写正确。")
