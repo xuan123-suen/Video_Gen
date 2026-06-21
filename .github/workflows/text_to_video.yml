@@ -16,25 +16,26 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: 安装网络和绘图依赖
+    - name: 安装系统级 FFmpeg 视频工具
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+
+    - name: 安装 Python 绘图依赖
       run: |
         python -m pip install --upgrade pip
-        pip install requests pillow
+        pip install pillow
 
     - name: 运行 AI 视频生成脚本
-      env:
-        HF_TOKEN: ${{ secrets.HF_TOKEN }}
       run: |
         python generate_video.py
         echo "=== 检查当前目录下生成的文件 ==="
         ls -la
-        sleep 3 # 强制等待3秒，确保硬盘写入完成
+        sleep 2
 
     - name: 将生成的视频上传到 GitHub 供下载
       uses: actions/upload-artifact@v4
       with:
         name: ai-generated-video
-        path: |
-          output_video.mp4
-          *.mp4
-        if-no-files-found: error # 如果找不到文件，直接报错，不留隐患
+        path: output_video.mp4
+        if-no-files-found: error
